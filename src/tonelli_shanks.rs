@@ -1,30 +1,27 @@
 use log::info;
 use rug::Integer;
 
-/// Tonelli Shank Algorithm
-pub fn tonelli_shank(n: &Integer, p: &Integer) -> Integer {
+/// Tonelli Shanks Algorithm
+pub fn tonelli_shanks(n: &Integer, p: &Integer) -> Integer {
     if n.legendre(p) != 1 || *n == 0 {
         Integer::new()
     } else if *p == 2 {
         p.clone()
-    } else if p.mod_u(4) == 3 {
+    } else if p.is_congruent_u(3,4) {
         n.clone().pow_mod(&((p.clone() + 1) / 4), p).unwrap()
     } else {
-        let (mut s, mut e): (Integer, _) = ((p.clone() - 1), 0);
-        while s.is_divisible_2pow(1) {
-            s /= 2;
-            e += 1;
-        }
+        let mut s : Integer = p.clone() - 1;
+        let e = s.find_one(0).unwrap();
+        s >>= e;
 
-        let mut z: Integer = 2.into();
-
+        let mut z: Integer = Integer::from(2_u8);
         while z.legendre(p) != -1 {
             z += 1;
         }
 
-        let mut x = n.clone().pow_mod(&((s.clone() + 1) / 2), p).unwrap();
         let mut b = n.clone().pow_mod(&s, p).unwrap();
         let mut g = z.pow_mod(&s, p).unwrap();
+        let mut x = n.clone().pow_mod(&((s + 1) / 2), p).unwrap();
         let mut r = e;
 
         info!("x = {} b={} g={} r={}", x, b, g, r);
@@ -37,7 +34,6 @@ pub fn tonelli_shank(n: &Integer, p: &Integer) -> Integer {
 
             while m < r && t != 1 {
                 t = t.pow_mod(&TWO, p).unwrap();
-
                 m += 1;
             }
             if m == 0 {
@@ -46,11 +42,11 @@ pub fn tonelli_shank(n: &Integer, p: &Integer) -> Integer {
 
             let gs = g
                 .clone()
-                .pow_mod(&Integer::from(Integer::u_pow_u(2, r - m - 1)), p)
+                .pow_mod(& (Integer::from(1_u8) << (r-m-1)), p)
                 .unwrap();
 
-            g = gs.clone() * &gs % p;
-            x = x * gs % p;
+            g = gs.clone().square() % p;
+            x = x * &gs % p;
             b = b * &g % p;
             r = m;
 
@@ -66,6 +62,6 @@ mod tests {
     #[test]
     fn test_tonelli_shank() {
         let (n, p) = (Integer::from(23479349), Integer::from(23));
-        assert_eq!(tonelli_shank(&n, &p), Integer::from(12));
+        assert_eq!(tonelli_shanks(&n, &p), Integer::from(12));
     }
 }

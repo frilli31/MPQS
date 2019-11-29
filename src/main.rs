@@ -6,11 +6,11 @@ use std::fmt;
 use std::time::Instant;
 
 pub mod algebra;
-pub mod parallel2_MPQS;
-pub mod parallel_quadratic_sieve;
-pub mod quadratic_sieve;
+pub mod memory_shared_MPQS;
+pub mod message_MPQS;
 pub mod rabin_miller;
-pub mod tonelli_shank;
+pub mod serial_MPQS;
+pub mod tonelli_shanks;
 
 use rabin_miller::is_rabin_miller_prime;
 
@@ -21,8 +21,8 @@ pub fn main() {
     let _s1 = "676292275716558246502605230897191366469551764092181362779759";
     let _s2 = "2736300383840445596906210796102273501547527150973747";
 
-    let _p1 = "1201121312171223122912311237";
-    let _p2 = "3023706637809542222940030043";
+    let _p1 = "1201121312171223122912311237".parse::<Integer>().unwrap();
+    let _p2 = "3023706637809542222940030043".parse::<Integer>().unwrap();
 
     let p1 = "98761037 7233144895 5342113853".parse::<Integer>().unwrap();
     let p2 = "1001446553 1244957205 9845328443"
@@ -32,9 +32,11 @@ pub fn main() {
 
     let _n = _s2.parse::<Integer>().unwrap();
 
-    //let _r = time(|| quadratic_sieve::qs(&(p1.clone() * &p2)));
-    let _r = time(|| parallel2_MPQS::parallel_qs(&(p1.clone() * &p2)));
-    //let _r = time(|| parallel_quadratic_sieve::parallel_qs(&(p1.clone() * &p2)));
+    let _r = time(|| serial_MPQS::mpqs(&(_p1.clone() * &_p2)));
+//        std::thread::sleep(std::time::Duration::from_secs(10));
+//        let _r = time(|| message_MPQS::mpqs(&(_p1.clone() * &_p2)));
+//        std::thread::sleep(std::time::Duration::from_secs(20));
+//        let _r = time(|| memory_shared_MPQS::mpqs(&(_p1.clone() * &_p2)));
 }
 
 pub fn check_is_divisor(n: Integer, qs: Option<Integer>) {

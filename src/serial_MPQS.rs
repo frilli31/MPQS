@@ -1,90 +1,27 @@
-use log::info;
-use primal_sieve;
-use rug::Integer;
 use std::cmp::{max, min};
 use std::collections::HashMap;
 
+use log::info;
+use primal_sieve;
+use rug::Integer;
+
 use crate::algebra;
-use crate::tonelli_shank::tonelli_shank;
+use crate::tonelli_shanks::tonelli_shanks;
 
-pub fn qs(n: &Integer) -> Option<Integer> {
-    let _root2n: Integer = (n * Integer::from(2)).sqrt();
-
-    info!("Isqrt is {}", _root2n);
-
-    let bound: usize = (n.to_f64().log10().powf(2_f64) * 5_f64) as usize;
-
-    info!("Bound is {}", bound);
-
-    let factorbase: Vec<Integer> = {
-        let mut v = vec![Integer::from(2)];
-        v.extend(
-            primal_sieve::Sieve::new(bound)
-                .primes_from(3)
-                .take_while(|x| x <= &bound)
-                .map(|x| Integer::from(x))
-                .filter(|x| n.legendre(x) == 1),
-        );
-        v
-    };
-
-    println!(
-        "Largest prime used is {:?}",
-        factorbase[factorbase.len() - 1]
-    );
-    info!("Factorbase len {:?}", factorbase.len());
-
-    let mut tsqrt: Vec<Integer> = Vec::with_capacity(factorbase.len());
-    let mut tlog: Vec<f64> = Vec::with_capacity(factorbase.len());
-
-    for p in factorbase.iter() {
-        //info!("Starting Tonelli Shank on {} - {}", n, p);
-        let f1 = tonelli_shank(&n, &p);
-        //info!("Tonelli Shank on {} - {} = \t {}", n, p, f1);
-        tsqrt.push(f1);
-        tlog.push(p.to_f64().log10());
-    }
-    tsqrt[0] = Integer::new();
-
-    info!("{:?}", tsqrt);
-    info!("{:?}", tlog);
-
-    let xmax: i64 = factorbase.len() as i64 * 60 * 4;
-    let mval: Integer = (_root2n.clone() * xmax) >> 1;
-    let thresh = mval.to_f64().log10() * 0.735;
-
-    info!("XMAX is {:?}", xmax);
-    info!("mval is {:?}", mval);
-    info!("thresh is {:?}", thresh);
-
-    let min_prime = (thresh * 3_f64) as u64;
-    let fudge: f64 = {
-        let temp_fudge: f64 = factorbase
-            .iter()
-            .take_while(|p| p < &&min_prime)
-            .enumerate()
-            .map(|(i, _)| tlog[i])
-            .sum();
-        temp_fudge / 4_f64
-    };
-
-    info!("min_prime is: {}", min_prime);
-    info!("thresh is: {}", thresh);
-    info!("Fudge is: {}", fudge);
-
-    let thresh = thresh - fudge;
-
-    let mut roota = (_root2n / xmax).sqrt();
-    if roota.is_divisible_2pow(1) {
-        roota += 1;
-    }
-
-    info!("ROOTA is {}", roota);
-    let mut roota: Integer = max(roota, Integer::from(3));
-    info!("ROOTA is {}", roota);
+pub fn mpqs(n: &Integer) -> Option<Integer> {
+    let InitResult {
+        mut roota,
+        factorbase,
+        tsqrt,
+        xmax,
+        tlog,
+        thresh,
+        min_prime,
+    } = initialize_qs(n);
 
     let mut smooths = Vec::new();
     let mut partials: HashMap<Integer, (Integer, (Integer, Integer))> = HashMap::new();
+    let sievesize = 1_i64 << 15;
 
     loop {
         loop {
@@ -95,7 +32,7 @@ pub fn qs(n: &Integer) -> Option<Integer> {
         }
         info!("Loop 1, roota: {}", roota);
         let a = roota.clone() * &roota;
-        let b = tonelli_shank(&n, &roota);
+        let b = tonelli_shanks(&n, &roota);
 
         let int2: Integer = b.clone() * 2;
         let intermediate = int2.invert(&roota).unwrap();
@@ -105,8 +42,6 @@ pub fn qs(n: &Integer) -> Option<Integer> {
         let c = (b.clone() * &b - n) / &a;
 
         info!("a={} \t b={} \t c={}", a, b, c);
-
-        let sievesize = 1_i64 << 15;
 
         let mut s1: HashMap<Integer, Integer> = HashMap::new();
         let mut s2: HashMap<Integer, Integer> = HashMap::new();
@@ -123,7 +58,7 @@ pub fn qs(n: &Integer) -> Option<Integer> {
             s2.insert(p.clone(), sol2 + xmax);
         }
 
-        for low in (0 - xmax..xmax + 1).step_by(sievesize as usize + 1) {
+        for low in (-xmax..=xmax).step_by(sievesize as usize + 1) {
             let high = min(xmax, low + sievesize);
             let size = high - low;
             let size_plus_1 = size + 1;
@@ -153,7 +88,7 @@ pub fn qs(n: &Integer) -> Option<Integer> {
                 s2.insert(p_i.clone(), Integer::from(sol2 - size_plus_1));
             }
 
-            for i in 0..size + 1 {
+            for i in 0..=size {
                 if S[i as usize] > thresh {
                     let x = i + low;
                     let tofact: Integer = a.clone() * x.pow(2) + b.clone() * x * 2 + &c;
@@ -191,12 +126,101 @@ pub fn qs(n: &Integer) -> Option<Integer> {
     algebra::algebra(factorbase, smooths, n)
 }
 
+pub struct InitResult {
+    pub roota: Integer,
+    pub factorbase: Vec<Integer>,
+    pub tsqrt: Vec<Integer>,
+    pub xmax: i64,
+    pub tlog: Vec<f64>,
+    pub thresh: f64,
+    pub min_prime: u64,
+}
+
+pub fn initialize_qs(n: &Integer) -> InitResult {
+    let _root2n: Integer = (n * Integer::from(2)).sqrt();
+
+    info!("Isqrt is {}", _root2n);
+
+    let bound: usize = (n.to_f64().log10().powf(2_f64) * 5_f64) as usize;
+
+    info!("Bound is {}", bound);
+
+    let factorbase: Vec<Integer> = {
+        let mut v = vec![Integer::from(2)];
+        v.extend(
+            primal_sieve::Sieve::new(bound)
+                .primes_from(3)
+                .take_while(|x| x <= &bound)
+                .map(|x| Integer::from(x))
+                .filter(|x| n.legendre(x) == 1),
+        );
+        v
+    };
+
+    info!(
+        "Largest prime used is {:?}",
+        factorbase[factorbase.len() - 1]
+    );
+    info!("Factorbase len {:?}", factorbase.len());
+
+    let (mut tsqrt, tlog): (Vec<Integer>, Vec<f64>) = factorbase
+        .iter()
+        .map(|p| (tonelli_shanks(&n, &p), p.to_f64().log10()))
+        .unzip();
+    tsqrt[0] = Integer::new();
+
+    info!("{:?}", tsqrt);
+    info!("{:?}", tlog);
+
+    let xmax: i64 = factorbase.len() as i64 * 60 * 4;
+    let mval: Integer = (_root2n.clone() * xmax) >> 1;
+    let thresh = mval.to_f64().log10() * 0.735;
+
+    info!("XMAX is {:?}", xmax);
+    info!("mval is {:?}", mval);
+    info!("thresh is {:?}", thresh);
+
+    let min_prime = (thresh * 3_f64) as u64;
+    let fudge: f64 = factorbase
+        .iter()
+        .take_while(|p| p < &&min_prime)
+        .enumerate()
+        .map(|(i, _)| tlog[i])
+        .sum::<f64>()
+        / 4_f64;
+
+    info!("min_prime is: {}", min_prime);
+    info!("thresh is: {}", thresh);
+    info!("Fudge is: {}", fudge);
+
+    let thresh = thresh - fudge;
+
+    let mut roota = (_root2n / xmax).sqrt();
+    if roota.is_divisible_2pow(1) {
+        roota += 1;
+    }
+
+    info!("ROOTA is {}", roota);
+    let roota: Integer = max(roota, Integer::from(3));
+    info!("ROOTA is {}", roota);
+
+    InitResult {
+        roota,
+        factorbase,
+        tsqrt,
+        xmax,
+        tlog,
+        thresh,
+        min_prime,
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use rug::Integer;
 
     use crate::check_is_divisor;
-    use crate::quadratic_sieve::qs;
-    use rug::Integer;
+    use crate::serial_MPQS::mpqs;
 
     #[test]
     fn test_qs() {
@@ -210,6 +234,6 @@ mod tests {
     #[test]
     fn test_qs_2() {
         let n = "9986801107".parse::<Integer>().unwrap();
-        check_is_divisor(n.clone(), qs(&n));
+        check_is_divisor(n.clone(), mpqs(&n));
     }
 }

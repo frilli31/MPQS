@@ -1,107 +1,61 @@
-use log::info;
-use primal_sieve;
-use rug::ops::Pow;
-use rug::Integer;
-use std::cmp::{max, min};
+use std::cmp::min;
 use std::collections::HashMap;
 
+use log::info;
+use rug::ops::Pow;
+use rug::Integer;
+
 use crate::algebra;
-use crate::tonelli_shank::tonelli_shank;
+use crate::serial_MPQS::{initialize_qs, InitResult};
+use crate::tonelli_shanks::tonelli_shanks;
 
 /// Nothing Shared
-pub fn parallel_qs(n: &Integer) -> Option<Integer> {
-    let _root2n: Integer = (n * Integer::from(2)).sqrt();
+pub fn mpqs(n: &Integer) -> Option<Integer> {
+    let InitResult {
+        mut roota,
+        factorbase,
+        tsqrt,
+        xmax,
+        tlog,
+        thresh,
+        min_prime,
+    } = initialize_qs(n);
 
-    info!("Isqrt is {}", _root2n);
-
-    let bound: usize = (n.to_f64().log10().powf(2_f64) * 5_f64) as usize;
-
-    info!("Bound is {}", bound);
-
-    let factorbase: Vec<Integer> = {
-        let mut v = vec![Integer::from(2)];
-        v.extend(
-            primal_sieve::Sieve::new(bound)
-                .primes_from(3)
-                .take_while(|x| x <= &bound)
-                .map(|x| Integer::from(x))
-                .filter(|x| n.legendre(x) == 1),
-        );
-        v
-    };
-    info!(
-        "Largest prime used is {:?}",
-        factorbase[factorbase.len() - 1]
-    );
-    info!("Factorbase len {:?}", factorbase.len());
-
-    let mut tsqrt: Vec<Integer> = Vec::with_capacity(factorbase.len());
-    let mut tlog: Vec<f64> = Vec::with_capacity(factorbase.len());
-
-    for p in factorbase.iter() {
-        //info!("Starting Tonelli Shank on {} - {}", n, p);
-        let f1 = tonelli_shank(&n, &p);
-        info!("Tonelli Shank on {} - {} = \t {}", n, p, f1);
-        tsqrt.push(f1);
-        tlog.push(p.to_f64().log10());
-    }
-    tsqrt[0] = Integer::new();
-
-    info!("{:?}", tsqrt);
-    info!("{:?}", tlog);
-
-    let xmax: i64 = factorbase.len() as i64 * 60 * 4;
-    let mval: Integer = (_root2n.clone() * xmax) >> 1;
-    let thresh = mval.to_f64().log10() * 0.735;
-    let min_prime = (thresh * 3_f64) as u64;
-    let mut fudge: f64 = factorbase
-        .iter()
-        .take_while(|p| *p < &min_prime)
-        .enumerate()
-        .map(|(i, _)| tlog[i])
-        .sum();
-    fudge /= 4_f64;
-
-    info!("min_prime is: {}", min_prime);
-    info!("thresh is: {}", thresh);
-    info!("Fudge is: {}", fudge);
-
-    let thresh = thresh - fudge;
-
-    let mut roota = (_root2n / xmax).sqrt();
-
-    if roota.is_divisible_2pow(1) {
-        roota += 1;
-    }
-
-    info!("ROOTA is {}", roota);
-    let mut roota: Integer = max(roota, Integer::from(3));
-    info!("ROOTA is {}", roota);
-
+    // Multi Producer - Single Consumer
     let (result_sender, result_receiver) = std::sync::mpsc::sync_channel(50);
-
+    // Single Producer - Multiple Consumer
     let (roota_sender, roota_receiver) = crossbeam_channel::bounded(200);
 
     let n_clone = n.clone();
-    rayon::spawn(move || loop {
+
+    let roota_actor = move || loop {
         roota.next_prime_mut();
         while n_clone.legendre(&roota) != 1 {
             roota.next_prime_mut();
         }
         roota_sender.send(roota.clone());
-    });
+    };
+    rayon::spawn(roota_actor);
 
     for _ in 0..num_cpus::get() {
         let z = n.clone();
         let factorbase = factorbase.clone();
-        let sender = result_sender.clone();
+        let result_sender = result_sender.clone();
         let tsqrt = tsqrt.clone();
         let tlog = tlog.clone();
         let roota = roota_receiver.clone();
 
         rayon::spawn(move || {
-            thread_loop(
-                z, factorbase, sender, roota, tsqrt, tlog, xmax, min_prime, thresh,
+            sieve_actor(
+                z,
+                factorbase,
+                result_sender,
+                roota,
+                tsqrt,
+                tlog,
+                xmax,
+                min_prime,
+                thresh,
             )
         });
     }
@@ -127,10 +81,11 @@ pub fn parallel_qs(n: &Integer) -> Option<Integer> {
             }
         }
     }
+    std::mem::drop(result_receiver);
     algebra::algebra(factorbase, smooths, n)
 }
 
-fn thread_loop(
+fn sieve_actor(
     n: Integer,
     factorbase: Vec<Integer>,
     sender: std::sync::mpsc::SyncSender<(
@@ -155,7 +110,7 @@ fn thread_loop(
 
         info!("Loop 1, roota: {}, n: {}", roota, n);
         let a = roota.clone().pow(2);
-        let b = tonelli_shank(&n, &roota);
+        let b = tonelli_shanks(&n, &roota);
 
         let int2: Integer = b.clone() * 2;
         let intermediate = int2.invert(&roota).expect("Inverse does not exist");
@@ -180,7 +135,7 @@ fn thread_loop(
             s2.insert(p.clone(), sol2 + xmax);
         }
 
-        for low in (0 - xmax..xmax + 1).step_by(sievesize as usize + 1) {
+        for low in (-xmax..=xmax).step_by(sievesize as usize + 1) {
             let high = min(xmax, low + sievesize);
             let size = high - low;
             let size_plus_1 = size + 1;
@@ -210,7 +165,7 @@ fn thread_loop(
                 s2.insert(p_i.clone(), Integer::from(sol2 - size_plus_1));
             }
 
-            for i in 0..size + 1 {
+            for i in 0..=size {
                 if S[i as usize] > thresh {
                     let x = i + low;
                     let tofact: Integer = a.clone() * x.pow(2) + b.clone() * x * 2 + &c;
@@ -241,7 +196,9 @@ fn thread_loop(
             }
         }
         if count % 5 == 0 {
-            sender.send((smooths.drain(..).collect(), partials.drain().collect()));
+            if let Err(_) = sender.send((smooths.drain(..).collect(), partials.drain().collect())) {
+                return;
+            };
         } else {
             sender.send((smooths.drain(..).collect(), HashMap::new()));
         }
@@ -250,10 +207,11 @@ fn thread_loop(
 
 #[cfg(test)]
 mod tests {
-
-    use super::parallel_qs;
-    use crate::check_is_divisor;
     use rug::Integer;
+
+    use crate::check_is_divisor;
+
+    use super::mpqs;
 
     #[test]
     fn test_qs() {
@@ -261,14 +219,14 @@ mod tests {
             .parse::<Integer>()
             .unwrap();
 
-        check_is_divisor(n.clone(), parallel_qs(&n));
+        check_is_divisor(n.clone(), mpqs(&n));
     }
 
     #[test]
     fn test_qs_2() {
         let n = "9986801107".parse::<Integer>().unwrap();
 
-        check_is_divisor(n.clone(), parallel_qs(&n));
+        check_is_divisor(n.clone(), mpqs(&n));
     }
 
     #[test]
@@ -277,7 +235,7 @@ mod tests {
         let n = "2736300383840445596906210796102273501547527150973747"
             .parse::<Integer>()
             .unwrap();
-        check_is_divisor(n.clone(), parallel_qs(&n));
+        check_is_divisor(n.clone(), mpqs(&n));
     }
 
     #[test]
@@ -286,6 +244,6 @@ mod tests {
         let n = "676292275716558246502605230897191366469551764092181362779759"
             .parse::<Integer>()
             .unwrap();
-        check_is_divisor(n.clone(), parallel_qs(&n));
+        check_is_divisor(n.clone(), mpqs(&n));
     }
 }

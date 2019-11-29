@@ -78,7 +78,7 @@ pub fn algebra(
     None
 }
 
-fn create_vector(n: &Integer, factor_base: &Vec<Integer>) -> Integer {
+fn create_vector(n: &Integer, factor_base: &[Integer]) -> Integer {
     let mut n = n.clone();
     let mut a = Integer::new();
     let lg = factor_base.len() - 1;
@@ -87,9 +87,9 @@ fn create_vector(n: &Integer, factor_base: &Vec<Integer>) -> Integer {
         n = -n;
     }
     for (i, p) in factor_base.iter().enumerate() {
-        if n.clone() % p == 0 {
+        if n.is_divisible(p) {
             let mut c = 0;
-            while n.clone() % p == 0 {
+            while n.is_divisible(p) {
                 n /= p;
                 c += 1;
             }
