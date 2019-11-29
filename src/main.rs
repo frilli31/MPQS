@@ -34,7 +34,7 @@ pub fn main() {
 
     let _r = time(|| serial_MPQS::mpqs(&(_p1.clone() * &_p2)));
 //        std::thread::sleep(std::time::Duration::from_secs(10));
-//        let _r = time(|| message_MPQS::mpqs(&(_p1.clone() * &_p2)));
+        let _r = time(|| message_MPQS::mpqs(&(_p1.clone() * &_p2)));
 //        std::thread::sleep(std::time::Duration::from_secs(20));
 //        let _r = time(|| memory_shared_MPQS::mpqs(&(_p1.clone() * &_p2)));
 }

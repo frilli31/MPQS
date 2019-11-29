@@ -58,7 +58,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
             s2.insert(p.clone(), sol2 + xmax);
         }
 
-        for low in (-xmax..=xmax).step_by(sievesize as usize + 1) {
+        for low in (-xmax..xmax+1).step_by(sievesize as usize + 1) {
             let high = min(xmax, low + sievesize);
             let size = high - low;
             let size_plus_1 = size + 1;
@@ -88,7 +88,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
                 s2.insert(p_i.clone(), Integer::from(sol2 - size_plus_1));
             }
 
-            for i in 0..=size {
+            for i in 0..size_plus_1 {
                 if S[i as usize] > thresh {
                     let x = i + low;
                     let tofact: Integer = a.clone() * x.pow(2) + b.clone() * x * 2 + &c;

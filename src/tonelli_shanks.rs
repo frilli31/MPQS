@@ -14,7 +14,7 @@ pub fn tonelli_shanks(n: &Integer, p: &Integer) -> Integer {
         let e = s.find_one(0).unwrap();
         s >>= e;
 
-        let mut z: Integer = Integer::from(2_u8);
+        let mut z: Integer = Integer::from(2);
         while z.legendre(p) != -1 {
             z += 1;
         }
@@ -42,11 +42,11 @@ pub fn tonelli_shanks(n: &Integer, p: &Integer) -> Integer {
 
             let gs = g
                 .clone()
-                .pow_mod(& (Integer::from(1_u8) << (r-m-1)), p)
+                .pow_mod(&Integer::from(Integer::u_pow_u(2, r - m - 1)), p)
                 .unwrap();
 
             g = gs.clone().square() % p;
-            x = x * &gs % p;
+            x = x * gs % p;
             b = b * &g % p;
             r = m;
 
