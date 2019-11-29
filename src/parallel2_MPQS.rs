@@ -1,5 +1,3 @@
-use chashmap::CHashMap;
-use crossbeam::queue::ArrayQueue;
 use log::info;
 use primal_sieve;
 use rug::ops::Pow;
@@ -7,12 +5,10 @@ use rug::Integer;
 use std::cmp::{max, min};
 use std::collections::HashMap;
 
-use std::sync::{mpsc::Sender, Arc, Mutex};
-
 use crate::algebra;
 use crate::tonelli_shank::tonelli_shank;
 
-/// Memory shared: smooth and maybe partial
+/// Nothing Shared
 pub fn parallel_qs(n: &Integer) -> Option<Integer> {
     let _root2n: Integer = (n * Integer::from(2)).sqrt();
 
@@ -79,83 +75,90 @@ pub fn parallel_qs(n: &Integer) -> Option<Integer> {
     }
 
     info!("ROOTA is {}", roota);
-    let roota: Integer = max(roota, Integer::from(3));
+    let mut roota: Integer = max(roota, Integer::from(3));
     info!("ROOTA is {}", roota);
 
-    let smooths = ArrayQueue::new(factorbase.len() + 100);
+    let (result_sender, result_receiver) = std::sync::mpsc::sync_channel(50);
 
-    let (sender, receiver) = std::sync::mpsc::channel();
-    let roota = Arc::new(Mutex::new(roota));
+    let (roota_sender, roota_receiver) = crossbeam_channel::bounded(200);
 
-    let arc_smooths = Arc::new(smooths);
-    let partials = Arc::new(CHashMap::default());
+    let n_clone = n.clone();
+    rayon::spawn(move || loop {
+        roota.next_prime_mut();
+        while n_clone.legendre(&roota) != 1 {
+            roota.next_prime_mut();
+        }
+        roota_sender.send(roota.clone());
+    });
 
     for _ in 0..num_cpus::get() {
         let z = n.clone();
         let factorbase = factorbase.clone();
-        let sender = sender.clone();
+        let sender = result_sender.clone();
         let tsqrt = tsqrt.clone();
         let tlog = tlog.clone();
-        let arc_smooths = arc_smooths.clone();
-        let roota = roota.clone();
-        let partials = partials.clone();
+        let roota = roota_receiver.clone();
 
-        std::thread::spawn(move || {
+        rayon::spawn(move || {
             thread_loop(
-                z,
-                factorbase,
-                arc_smooths,
-                sender,
-                roota,
-                tsqrt,
-                tlog,
-                xmax,
-                min_prime,
-                thresh,
-                partials,
+                z, factorbase, sender, roota, tsqrt, tlog, xmax, min_prime, thresh,
             )
         });
     }
 
-    let _ = receiver.recv();
+    let mut smooths = Vec::with_capacity(factorbase.len() + 100);
+    let mut partials: HashMap<Integer, (Integer, (Integer, Integer))> = HashMap::new();
 
-    let mut new_smooth: Vec<_> = Vec::with_capacity(arc_smooths.len());
-    for _ in 0..arc_smooths.len() {
-        new_smooth.push(arc_smooths.pop().unwrap());
+    while smooths.len() <= factorbase.len() {
+        let (mut sm, part) = result_receiver.recv().unwrap();
+        smooths.append(&mut sm);
+
+        for (key, (pairv2, pairvals2)) in part {
+            match partials.remove(&key) {
+                Some((pairv, pairvals)) => {
+                    smooths.push((
+                        pairv * pairv2,
+                        (pairvals2.0 * pairvals.0, pairvals.1 * pairvals2.1 * key),
+                    ));
+                }
+                None => {
+                    partials.insert(key, (pairv2, pairvals2));
+                }
+            }
+        }
     }
-    algebra::algebra(factorbase.clone(), new_smooth.clone(), n)
+    algebra::algebra(factorbase, smooths, n)
 }
 
 fn thread_loop(
     n: Integer,
     factorbase: Vec<Integer>,
-    smooths: Arc<ArrayQueue<(Integer, (Integer, Integer))>>,
-    sender: Sender<()>,
-    roota: Arc<Mutex<Integer>>,
+    sender: std::sync::mpsc::SyncSender<(
+        Vec<(Integer, (Integer, Integer))>,
+        HashMap<Integer, (Integer, (Integer, Integer))>,
+    )>,
+    roota: crossbeam_channel::Receiver<Integer>,
     tsqrt: Vec<Integer>,
     tlog: Vec<f64>,
     xmax: i64,
     min_prime: u64,
     thresh: f64,
-    partials: Arc<CHashMap<Integer, (Integer, (Integer, Integer))>>,
 ) {
     let sievesize = 1_i64 << 15;
+    let mut count = 0_u64;
+    let mut partials: HashMap<Integer, (Integer, (Integer, Integer))> = HashMap::new();
+    let mut smooths: Vec<(Integer, (Integer, Integer))> = Vec::new();
 
     loop {
-        let my_roota: Integer = {
-            let mut aq_roota = roota.lock().unwrap();
-            aq_roota.next_prime_mut();
-            while n.legendre(&aq_roota) != 1 {
-                aq_roota.next_prime_mut();
-            }
-            aq_roota.clone()
-        };
-        info!("Loop 1, roota: {}, n: {}", my_roota, n);
-        let a = my_roota.clone().pow(2);
-        let b = tonelli_shank(&n, &my_roota);
+        count += 1;
+        let roota = roota.recv().unwrap();
+
+        info!("Loop 1, roota: {}, n: {}", roota, n);
+        let a = roota.clone().pow(2);
+        let b = tonelli_shank(&n, &roota);
 
         let int2: Integer = b.clone() * 2;
-        let intermediate = int2.invert(&my_roota).expect("Inverse does not exist");
+        let intermediate = int2.invert(&roota).expect("Inverse does not exist");
         let b = (-(b.clone() * &b - &n) * intermediate + &b) % &a;
 
         let c = (b.clone() * &b - &n) / &a;
@@ -220,28 +223,27 @@ fn thread_loop(
                     }
 
                     if nf == 1 {
-                        smooths.push((a.clone() * x + &b, (tofact, my_roota.clone())));
+                        smooths.push((a.clone() * x + &b, (tofact, roota.clone())));
                     } else {
                         match partials.remove(&nf) {
                             Some((pairv, pairvals)) => {
                                 smooths.push((
                                     pairv * (a.clone() * x + &b),
-                                    (tofact * pairvals.0, pairvals.1 * &my_roota * nf),
+                                    (tofact * pairvals.0, pairvals.1 * &roota * nf),
                                 ));
                             }
                             None => {
-                                partials
-                                    .insert(nf, (a.clone() * x + &b, (tofact, my_roota.clone())));
+                                partials.insert(nf, (a.clone() * x + &b, (tofact, roota.clone())));
                             }
                         }
                     }
                 }
             }
         }
-
-        if smooths.len() > factorbase.len() {
-            sender.send(());
-            return;
+        if count % 5 == 0 {
+            sender.send((smooths.drain(..).collect(), partials.drain().collect()));
+        } else {
+            sender.send((smooths.drain(..).collect(), HashMap::new()));
         }
     }
 }
