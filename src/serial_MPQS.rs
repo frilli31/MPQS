@@ -43,19 +43,21 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
 
         info!("a={} \t b={} \t c={}", a, b, c);
 
-        let mut s1: HashMap<Integer, Integer> = HashMap::new();
-        let mut s2: HashMap<Integer, Integer> = HashMap::new();
+        let mut s1: HashMap<u64, Integer> = HashMap::new();
+        let mut s2: HashMap<u64, Integer> = HashMap::new();
 
         for (i, p) in factorbase.iter().enumerate() {
-            let p_minus_2 = p.clone() - 2;
-            let ainv = a.clone().pow_mod(&p_minus_2, p).unwrap();
+            let ainv = a
+                .clone()
+                .pow_mod(&Integer::from(p - 2), &Integer::from(*p))
+                .unwrap();
             let mut sol1 = (tsqrt[i].clone() - &b) * &ainv % p;
             let mut sol2 = (-tsqrt[i].clone() - &b) * &ainv % p;
             sol1 -= ((sol1.clone() + xmax) / p) * p;
             sol2 -= ((sol2.clone() + xmax) / p) * p;
 
-            s1.insert(p.clone(), sol1 + xmax);
-            s2.insert(p.clone(), sol2 + xmax);
+            s1.insert(*p, sol1 + xmax);
+            s2.insert(*p, sol2 + xmax);
         }
 
         for low in (-xmax..xmax + 1).step_by(sievesize as usize + 1) {
@@ -65,27 +67,27 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
 
             let mut S = vec![0_f64; size_plus_1 as usize];
 
-            for (i, p_i) in factorbase.iter().enumerate() {
-                if *p_i < min_prime {
+            for (i, p) in factorbase.iter().enumerate() {
+                if *p < min_prime {
                     continue;
                 }
-                let p = p_i.to_i64().unwrap();
-                let mut sol1 = s1[p_i].to_i64().unwrap();
-                let mut sol2 = s2[p_i].to_i64().unwrap();
+                let mut sol1 = s1[p].to_i64().unwrap();
+                let mut sol2 = s2[p].to_i64().unwrap();
                 let logp = tlog[i];
 
+                let p_i64 = *p as i64;
                 while sol1 <= size || sol2 <= size {
                     if sol1 <= size {
                         S[sol1 as usize] += logp;
-                        sol1 += p;
+                        sol1 += p_i64;
                     }
                     if sol2 <= size {
                         S[sol2 as usize] += logp;
-                        sol2 += p;
+                        sol2 += p_i64;
                     }
                 }
-                s1.insert(p_i.clone(), Integer::from(sol1 - size_plus_1));
-                s2.insert(p_i.clone(), Integer::from(sol2 - size_plus_1));
+                s1.insert(*p, Integer::from(sol1 - size_plus_1));
+                s2.insert(*p, Integer::from(sol2 - size_plus_1));
             }
 
             for i in 0..size_plus_1 {
@@ -95,7 +97,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
                     let mut nf = tofact.clone().abs();
 
                     for p in factorbase.iter() {
-                        while nf.is_divisible(p) {
+                        while nf.clone() % p == 0 {
                             nf /= p;
                         }
                     }
@@ -128,7 +130,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
 
 pub struct InitResult {
     pub roota: Integer,
-    pub factorbase: Vec<Integer>,
+    pub factorbase: Vec<u64>,
     pub tsqrt: Vec<Integer>,
     pub xmax: i64,
     pub tlog: Vec<f64>,
@@ -145,17 +147,12 @@ pub fn initialize_qs(n: &Integer) -> InitResult {
 
     info!("Bound is {}", bound);
 
-    let factorbase: Vec<Integer> = {
-        let mut v = vec![Integer::from(2)];
-        v.extend(
-            primal_sieve::Sieve::new(bound)
-                .primes_from(3)
-                .take_while(|x| x <= &bound)
-                .map(|x| Integer::from(x))
-                .filter(|x| n.legendre(x) == 1),
-        );
-        v
-    };
+    let factorbase: Vec<u64> = primal_sieve::Sieve::new(bound)
+        .primes_from(2)
+        .take_while(|x| x <= &bound)
+        .filter(|x| n.legendre(&Integer::from(*x as u64)) == 1 || *x == 2)
+        .map(|x| x as u64)
+        .collect();
 
     info!(
         "Largest prime used is {:?}",
@@ -165,7 +162,7 @@ pub fn initialize_qs(n: &Integer) -> InitResult {
 
     let (mut tsqrt, tlog): (Vec<Integer>, Vec<f64>) = factorbase
         .iter()
-        .map(|p| (tonelli_shanks(&n, &p), p.to_f64().log10()))
+        .map(|p| (tonelli_shanks(&n, &Integer::from(*p)), (*p as f64).log10()))
         .unzip();
     tsqrt[0] = Integer::new();
 
@@ -183,7 +180,7 @@ pub fn initialize_qs(n: &Integer) -> InitResult {
     let min_prime = (thresh * 3_f64) as u64;
     let fudge: f64 = factorbase
         .iter()
-        .take_while(|p| p < &&min_prime)
+        .take_while(|p| p < &&(min_prime))
         .enumerate()
         .map(|(i, _)| tlog[i])
         .sum::<f64>()

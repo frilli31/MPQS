@@ -1,18 +1,19 @@
 #![allow(non_snake_case)]
 #![allow(unused_must_use)]
 
-use rug::Integer;
 use std::fmt;
 use std::time::Instant;
 
+use rug::Integer;
+
+use rabin_miller::is_rabin_miller_prime;
+
 pub mod algebra;
-pub mod memory_shared_MPQS;
-pub mod message_MPQS;
+//pub mod memory_shared_MPQS;
+//pub mod message_MPQS;
 pub mod rabin_miller;
 pub mod serial_MPQS;
 pub mod tonelli_shanks;
-
-use rabin_miller::is_rabin_miller_prime;
 
 pub fn main() {
     //std::env::set_var("RUST_LOG", "Factorization::algebra=INFO");
@@ -33,8 +34,8 @@ pub fn main() {
     let _n = _s2.parse::<Integer>().unwrap();
 
     let _r = time(|| serial_MPQS::mpqs(&(_p1.clone() * &_p2)));
-    let _r = time(|| message_MPQS::mpqs(&(_p1.clone() * &_p2)));
-    let _r = time(|| memory_shared_MPQS::mpqs(&(_p1.clone() * &_p2)));
+    //    let _r = time(|| message_MPQS::mpqs(&(_p1.clone() * &_p2)));
+    //    let _r = time(|| memory_shared_MPQS::mpqs(&(_p1.clone() * &_p2)));
 }
 
 pub fn check_is_divisor(n: Integer, qs: Option<Integer>) {
