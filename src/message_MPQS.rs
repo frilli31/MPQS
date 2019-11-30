@@ -2,8 +2,8 @@ use std::cmp::min;
 use std::collections::HashMap;
 
 use log::info;
-use rug::ops::Pow;
 use rug::Integer;
+use rug::ops::Pow;
 
 use crate::algebra;
 use crate::serial_MPQS::{initialize_qs, InitResult};
@@ -87,7 +87,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
 
 fn sieve_actor(
     n: Integer,
-    factorbase: Vec<Integer>,
+    factorbase: Vec<u64>,
     sender: std::sync::mpsc::SyncSender<(
         Vec<(Integer, (Integer, Integer))>,
         HashMap<Integer, (Integer, (Integer, Integer))>,
@@ -120,19 +120,21 @@ fn sieve_actor(
 
         info!("a={} \t b={} \t c={}", a, b, c);
 
-        let mut s1: HashMap<Integer, Integer> = HashMap::new();
-        let mut s2: HashMap<Integer, Integer> = HashMap::new();
+        let mut s1: HashMap<u64, i64> = HashMap::new();
+        let mut s2: HashMap<u64, i64> = HashMap::new();
 
         for (i, p) in factorbase.iter().enumerate() {
-            let p_minus_2 = p.clone() - 2;
-            let ainv = a.clone().pow_mod(&p_minus_2, p).unwrap();
+            let ainv = a
+                .clone()
+                .pow_mod(&Integer::from(p - 2), &Integer::from(*p))
+                .unwrap();
             let mut sol1 = (tsqrt[i].clone() - &b) * &ainv % p;
             let mut sol2 = (-tsqrt[i].clone() - &b) * &ainv % p;
             sol1 -= ((sol1.clone() + xmax) / p) * p;
             sol2 -= ((sol2.clone() + xmax) / p) * p;
 
-            s1.insert(p.clone(), sol1 + xmax);
-            s2.insert(p.clone(), sol2 + xmax);
+            s1.insert(*p, (sol1 + xmax).to_i64().unwrap());
+            s2.insert(*p, (sol2 + xmax).to_i64().unwrap());
         }
 
         for low in (-xmax..xmax + 1).step_by(sievesize as usize + 1) {
@@ -142,27 +144,27 @@ fn sieve_actor(
 
             let mut S = vec![0_f64; size_plus_1 as usize];
 
-            for (i, p_i) in factorbase.iter().enumerate() {
-                if *p_i < min_prime {
+            for (i, p) in factorbase.iter().enumerate() {
+                if *p < min_prime {
                     continue;
                 }
-                let p = p_i.to_i64().unwrap();
-                let mut sol1 = s1[p_i].to_i64().unwrap();
-                let mut sol2 = s2[p_i].to_i64().unwrap();
+                let mut sol1 = s1[p];
+                let mut sol2 = s2[p];
                 let logp = tlog[i];
 
+                let p_i64 = *p as i64;
                 while sol1 <= size || sol2 <= size {
                     if sol1 <= size {
                         S[sol1 as usize] += logp;
-                        sol1 += p;
+                        sol1 += p_i64;
                     }
                     if sol2 <= size {
                         S[sol2 as usize] += logp;
-                        sol2 += p;
+                        sol2 += p_i64;
                     }
                 }
-                s1.insert(p_i.clone(), Integer::from(sol1 - size_plus_1));
-                s2.insert(p_i.clone(), Integer::from(sol2 - size_plus_1));
+                s1.insert(*p, sol1 - size_plus_1);
+                s2.insert(*p, sol2 - size_plus_1);
             }
 
             for i in 0..size_plus_1 {
@@ -172,7 +174,7 @@ fn sieve_actor(
                     let mut nf = tofact.clone().abs();
 
                     for p in factorbase.iter() {
-                        while nf.is_divisible(p) {
+                        while nf.clone() % p == 0 {
                             nf /= p;
                         }
                     }

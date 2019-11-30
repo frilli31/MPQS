@@ -43,8 +43,8 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
 
         info!("a={} \t b={} \t c={}", a, b, c);
 
-        let mut s1: HashMap<u64, Integer> = HashMap::new();
-        let mut s2: HashMap<u64, Integer> = HashMap::new();
+        let mut s1: HashMap<u64, i64> = HashMap::new();
+        let mut s2: HashMap<u64, i64> = HashMap::new();
 
         for (i, p) in factorbase.iter().enumerate() {
             let ainv = a
@@ -56,8 +56,8 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
             sol1 -= ((sol1.clone() + xmax) / p) * p;
             sol2 -= ((sol2.clone() + xmax) / p) * p;
 
-            s1.insert(*p, sol1 + xmax);
-            s2.insert(*p, sol2 + xmax);
+            s1.insert(*p, (sol1 + xmax).to_i64().unwrap());
+            s2.insert(*p, (sol2 + xmax).to_i64().unwrap());
         }
 
         for low in (-xmax..xmax + 1).step_by(sievesize as usize + 1) {
@@ -71,8 +71,8 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
                 if *p < min_prime {
                     continue;
                 }
-                let mut sol1 = s1[p].to_i64().unwrap();
-                let mut sol2 = s2[p].to_i64().unwrap();
+                let mut sol1 = s1[p];
+                let mut sol2 = s2[p];
                 let logp = tlog[i];
 
                 let p_i64 = *p as i64;
@@ -86,8 +86,8 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
                         sol2 += p_i64;
                     }
                 }
-                s1.insert(*p, Integer::from(sol1 - size_plus_1));
-                s2.insert(*p, Integer::from(sol2 - size_plus_1));
+                s1.insert(*p, sol1 - size_plus_1);
+                s2.insert(*p, sol2 - size_plus_1);
             }
 
             for i in 0..size_plus_1 {
@@ -143,7 +143,7 @@ pub fn initialize_qs(n: &Integer) -> InitResult {
 
     info!("Isqrt is {}", _root2n);
 
-    let bound: usize = (n.to_f64().log10().powf(2_f64) * 5_f64) as usize;
+    let bound: usize = (n.to_f64().log10().powi(2) * 5_f64) as usize;
 
     info!("Bound is {}", bound);
 
