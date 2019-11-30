@@ -135,7 +135,7 @@ fn sieve_actor(
             s2.insert(p.clone(), sol2 + xmax);
         }
 
-        for low in (-xmax..xmax+1).step_by(sievesize as usize + 1) {
+        for low in (-xmax..xmax + 1).step_by(sievesize as usize + 1) {
             let high = min(xmax, low + sievesize);
             let size = high - low;
             let size_plus_1 = size + 1;

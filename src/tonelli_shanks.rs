@@ -7,10 +7,10 @@ pub fn tonelli_shanks(n: &Integer, p: &Integer) -> Integer {
         Integer::new()
     } else if *p == 2 {
         p.clone()
-    } else if p.is_congruent_u(3,4) {
+    } else if p.is_congruent_u(3, 4) {
         n.clone().pow_mod(&((p.clone() + 1) / 4), p).unwrap()
     } else {
-        let mut s : Integer = p.clone() - 1;
+        let mut s: Integer = p.clone() - 1;
         let e = s.find_one(0).unwrap();
         s >>= e;
 
