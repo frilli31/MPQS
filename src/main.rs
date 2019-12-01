@@ -35,10 +35,10 @@ pub fn main() {
 
     let _n = _s2.parse::<Integer>().unwrap();
 
-    let _r = time(|| serial_MPQS::mpqs(&_s1));
-//    let _r = time(|| message_MPQS::mpqs(&_s1));
+    //    let _r = time(|| serial_MPQS::mpqs(&_s1));
+    let _r = time(|| message_MPQS::mpqs(&_s1));
     //    let _r = time(|| serial_MPQS::mpqs(&(_p1.clone() * &_p2)));
-    let _r = time(|| memory_shared_MPQS::mpqs(&_s1));
+    //    let _r = time(|| memory_shared_MPQS::mpqs(&_s1));
 }
 
 pub fn check_is_divisor(n: Integer, qs: Option<Integer>) {

@@ -2,8 +2,8 @@ use std::cmp::min;
 use std::collections::HashMap;
 
 use log::info;
-use rug::Integer;
 use rug::ops::Pow;
+use rug::Integer;
 
 use crate::algebra;
 use crate::serial_MPQS::{initialize_qs, InitResult};
@@ -22,9 +22,9 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
     } = initialize_qs(n);
 
     // Multi Producer - Single Consumer
-    let (result_sender, result_receiver) = std::sync::mpsc::sync_channel(50);
+    let (result_sender, result_receiver) = std::sync::mpsc::sync_channel(20);
     // Single Producer - Multiple Consumer
-    let (roota_sender, roota_receiver) = crossbeam_channel::bounded(200);
+    let (roota_sender, roota_receiver) = crossbeam_channel::bounded(20);
 
     let n_clone = n.clone();
 
@@ -63,7 +63,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
     let mut smooths = Vec::with_capacity(factorbase.len() + 100);
     let mut partials: HashMap<Integer, (Integer, (Integer, Integer))> = HashMap::new();
 
-    while smooths.len() <= factorbase.len() {
+    while smooths.len() < factorbase.len() + 1 {
         let (mut sm, part) = result_receiver.recv().unwrap();
         smooths.append(&mut sm);
 
@@ -100,12 +100,10 @@ fn sieve_actor(
     thresh: f64,
 ) {
     let sievesize = 1_i64 << 15;
-    let mut count = 0_u64;
     let mut partials: HashMap<Integer, (Integer, (Integer, Integer))> = HashMap::new();
     let mut smooths: Vec<(Integer, (Integer, Integer))> = Vec::new();
 
     loop {
-        count += 1;
         let roota = roota.recv().unwrap();
 
         info!("Loop 1, roota: {}, n: {}", roota, n);
@@ -197,13 +195,9 @@ fn sieve_actor(
                 }
             }
         }
-        if count % 5 == 0 {
-            if let Err(_) = sender.send((smooths.drain(..).collect(), partials.drain().collect())) {
-                return;
-            };
-        } else {
-            sender.send((smooths.drain(..).collect(), HashMap::new()));
-        }
+        if let Err(_) = sender.send((smooths.drain(..).collect(), partials.drain().collect())) {
+            return;
+        };
     }
 }
 
