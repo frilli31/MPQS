@@ -3,7 +3,7 @@ use rug::ops::Pow;
 use rug::Integer;
 
 pub fn algebra(
-    mut factorbase: Vec<Integer>,
+    mut factorbase: Vec<u64>,
     smooths: Vec<(Integer, (Integer, Integer))>,
     settings: &Integer,
 ) -> Option<Integer> {
@@ -17,7 +17,7 @@ pub fn algebra(
 
     let factorbase_new = {
         let mut temp = vec![Integer::from(-1)];
-        temp.append(&mut factorbase);
+        factorbase.iter().for_each(|i| temp.push(Integer::from(*i)));
         temp
     };
 
@@ -78,7 +78,7 @@ pub fn algebra(
     None
 }
 
-fn create_vector(n: &Integer, factor_base: &[Integer]) -> Integer {
+fn create_vector(n: &Integer, factor_base: &[u64]) -> Integer {
     let mut n = n.clone();
     let mut a = Integer::new();
     let lg = factor_base.len() - 1;
@@ -87,9 +87,9 @@ fn create_vector(n: &Integer, factor_base: &[Integer]) -> Integer {
         n = -n;
     }
     for (i, p) in factor_base.iter().enumerate() {
-        if n.is_divisible(p) {
+        if n.clone() % p == 0 {
             let mut c = 0;
-            while n.is_divisible(p) {
+            while n.clone() % p == 0 {
                 n /= p;
                 c += 1;
             }
