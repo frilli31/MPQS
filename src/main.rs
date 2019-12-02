@@ -1,77 +1,57 @@
 #![allow(non_snake_case)]
-#![allow(unused_must_use)]
 
-use std::fmt;
-use std::time::Instant;
-
+use clap::{App, Arg};
 use rug::Integer;
 
-use rabin_miller::is_rabin_miller_prime;
-
-pub mod algebra;
-pub mod memory_shared_MPQS;
-pub mod message_MPQS;
-pub mod rabin_miller;
-pub mod serial_MPQS;
-pub mod tonelli_shanks;
+use MPQS::*;
 
 pub fn main() {
-    //std::env::set_var("RUST_LOG", "Factorization::algebra=INFO");
-    //env_logger::init();
+    let app = App::new("MPQS")
+        .version("1.0")
+        .author("Luca Allegro <luca.all1996@gmail.com>")
+        .about("Rust implementation of Multi-polinomial Quadratic Sieve, an algorithm to factorize numbers")
+        .arg(Arg::with_name("algorithm")
+            .short("a")
+            .long("algorithm")
+            .value_name("S or M or A")
+            .help("S for serial, M for Memory Shared or A for Actor(message passing)")
+            .required(true)
+            .validator(|v| if v == "S" || v == "M" || v == "A" { Ok(()) } else { Err("Algorithm should be one of S, M or A".to_owned()) })
+            .takes_value(true))
+        .arg(Arg::with_name("number")
+            .short("n")
+            .long("number")
+            .value_name("N")
+            .validator(|v| if v.chars().all(|c| c.is_ascii_digit()) { Ok(()) } else { Err("Number accepts only digits".to_owned()) })
+            .required_unless("product")
+            .help("The number to factorize")
+            .takes_value(true))
+        .arg(Arg::with_name("product")
+            .short("p")
+            .long("product")
+            .value_name("N N")
+            .help("Insert a pair of number to factorize their product")
+            .validator(|v| if v.chars().all(|c| c.is_ascii_digit()) { Ok(()) } else { Err("Number accepts only digits".to_owned()) })
+            .number_of_values(2)
+            .takes_value(true))
+        .get_matches();
 
-    let _s1 = "676292275716558246502605230897191366469551764092181362779759"
-        .parse::<Integer>()
-        .unwrap();
-    let _s2 = "2736300383840445596906210796102273501547527150973747";
+    let n: Integer = app
+        .value_of("number")
+        .map(|n| n.parse::<Integer>().unwrap())
+        .unwrap_or_else(|| {
+            let numbers: Vec<&str> = app.values_of("product").unwrap().collect();
+            numbers[0].parse::<Integer>().unwrap() * numbers[1].parse::<Integer>().unwrap()
+        });
 
-    let _p1 = "1201121312171223122912311237".parse::<Integer>().unwrap();
-    let _p2 = "3023706637809542222940030043".parse::<Integer>().unwrap();
-
-    let p1 = "98761037 7233144895 5342113853".parse::<Integer>().unwrap();
-    let p2 = "1001446553 1244957205 9845328443"
-        .parse::<Integer>()
-        .unwrap();
-    //let p3 = "4825641527 1247992250 9389813571".parse::<Integer>().unwrap();
-
-    let _n = _s2.parse::<Integer>().unwrap();
-
-    //    let _r = time(|| serial_MPQS::mpqs(&_s1));
-    let _r = time(|| message_MPQS::mpqs(&_s1));
-    //    let _r = time(|| serial_MPQS::mpqs(&(_p1.clone() * &_p2)));
-    //    let _r = time(|| memory_shared_MPQS::mpqs(&_s1));
-}
-
-pub fn check_is_divisor(n: Integer, qs: Option<Integer>) {
-    match qs {
-        Some(qs) => {
-            let (q, r) = n.clone().div_rem(qs.clone());
-            assert_eq!(r, Integer::new());
-            println!("{} = {} * {}", n, qs, q);
-        }
-        None => {
-            assert!(is_rabin_miller_prime(&n));
-            println!("{} is Rabin Miller prime", n);
-        }
-    }
-}
-
-pub fn time<F, O: fmt::Debug>(f: F) -> O
-where
-    F: Fn() -> O,
-{
-    let t = Instant::now();
-    let ris = f();
-    println!("R: {:?} in {:?}", ris, t.elapsed());
-    ris
+    let r = match app.value_of("algorithm").unwrap() {
+        "S" => time(|| serial_MPQS::mpqs(&n)),
+        "M" => time(|| memory_shared_MPQS::mpqs(&n)),
+        "A" => time(|| message_MPQS::mpqs(&n)),
+        _ => panic!(""),
+    };
+    check_is_divisor(n, r);
 }
 
 // Results: Factorization di 1201121312171223122912311237 * 3023706637809542222940030043
 // Python - 524 s
-// Rust Serial - 39 s
-// Rust Parallel - 20 s
-//
-// >>> 524 / 39
-// 13.435897435897436
-// >>> 524 / 20
-// 26.2
-// >>>

@@ -2,8 +2,8 @@ use std::cmp::min;
 use std::collections::HashMap;
 
 use log::info;
-use rug::ops::Pow;
 use rug::Integer;
+use rug::ops::Pow;
 
 use crate::algebra;
 use crate::serial_MPQS::{initialize_qs, InitResult};
@@ -28,14 +28,13 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
 
     let n_clone = n.clone();
 
-    let roota_actor = move || loop {
+    for _ in 0..num_cpus::get() + 3 {
         roota.next_prime_mut();
         while n_clone.legendre(&roota) != 1 {
             roota.next_prime_mut();
         }
         roota_sender.send(roota.clone());
-    };
-    rayon::spawn(roota_actor);
+    }
 
     for _ in 0..num_cpus::get() {
         let z = n.clone();
@@ -45,7 +44,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
         let tlog = tlog.clone();
         let roota = roota_receiver.clone();
 
-        rayon::spawn(move || {
+        std::thread::spawn(move || {
             sieve_actor(
                 z,
                 factorbase,
@@ -80,6 +79,11 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
                 }
             }
         }
+        roota.next_prime_mut();
+        while n_clone.legendre(&roota) != 1 {
+            roota.next_prime_mut();
+        }
+        roota_sender.send(roota.clone());
     }
     std::mem::drop(result_receiver);
     algebra::algebra(factorbase, smooths, n)
@@ -151,12 +155,12 @@ fn sieve_actor(
                 let logp = tlog[i];
 
                 let p_i64 = *p as i64;
-                while sol1 <= size || sol2 <= size {
-                    if sol1 <= size {
+                while sol1 < size_plus_1 || sol2 < size_plus_1 {
+                    if sol1 < size_plus_1 {
                         S[sol1 as usize] += logp;
                         sol1 += p_i64;
                     }
-                    if sol2 <= size {
+                    if sol2 < size_plus_1 {
                         S[sol2 as usize] += logp;
                         sol2 += p_i64;
                     }

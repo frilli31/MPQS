@@ -1,13 +1,13 @@
 use std::cmp::min;
 use std::collections::HashMap;
-use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::SyncSender;
 
 use chashmap::CHashMap;
 use crossbeam::queue::ArrayQueue;
 use log::info;
-use rug::ops::Pow;
 use rug::Integer;
+use rug::ops::Pow;
 
 use crate::algebra;
 use crate::serial_MPQS::{initialize_qs, InitResult};

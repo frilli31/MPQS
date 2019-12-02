@@ -128,6 +128,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
     algebra::algebra(factorbase, smooths, n)
 }
 
+#[derive(Debug)]
 pub struct InitResult {
     pub roota: Integer,
     pub factorbase: Vec<u64>,

@@ -1,9 +1,9 @@
 use log::info;
-use rug::ops::Pow;
 use rug::Integer;
+use rug::ops::Pow;
 
 pub fn algebra(
-    mut factorbase: Vec<u64>,
+    factorbase: Vec<u64>,
     smooths: Vec<(Integer, (Integer, Integer))>,
     settings: &Integer,
 ) -> Option<Integer> {
