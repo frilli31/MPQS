@@ -35,8 +35,8 @@ pub fn modular_inv(a0: Integer, m0: Integer) -> Integer {
 }
 
 pub fn time<F, O: fmt::Debug>(f: F) -> O
-    where
-        F: Fn() -> O,
+where
+    F: Fn() -> O,
 {
     let t = Instant::now();
     let ris = f();
