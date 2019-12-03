@@ -64,7 +64,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
     for _ in 0..arc_smooths.len() {
         new_smooth.push(arc_smooths.pop().unwrap());
     }
-    algebra::algebra(factorbase, new_smooth, n)
+    algebra::algebra(&factorbase, &new_smooth, n)
 }
 
 fn thread_loop(
@@ -179,7 +179,7 @@ fn thread_loop(
             }
         }
 
-        if smooths.len() > factorbase.len() {
+        if smooths.len() >= factorbase.len() {
             sender.send(());
             return;
         }

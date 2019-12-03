@@ -2,8 +2,8 @@ use rug::Integer;
 use rug::ops::Pow;
 
 pub fn algebra(
-    factorbase: Vec<u64>,
-    smooths: Vec<(Integer, (Integer, Integer))>,
+    factorbase: &[u64],
+    smooths: &[(Integer, (Integer, Integer))],
     settings: &Integer,
 ) -> Option<Integer> {
     let n = settings;

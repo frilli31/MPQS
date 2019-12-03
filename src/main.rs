@@ -2,6 +2,7 @@
 
 use clap::{App, Arg};
 use rug::Integer;
+use rug::integer::IsPrime;
 
 use MPQS::*;
 
@@ -44,13 +45,17 @@ pub fn main() {
             numbers[0].parse::<Integer>().unwrap() * numbers[1].parse::<Integer>().unwrap()
         });
 
-    let r = match app.value_of("algorithm").unwrap() {
-        "S" => time(|| serial_MPQS::mpqs(&n)),
-        "M" => time(|| memory_shared_MPQS::mpqs(&n)),
-        "A" => time(|| message_MPQS::mpqs(&n)),
-        _ => panic!(""),
-    };
-    check_is_divisor(n, r);
+    if rabin_miller::is_rabin_miller_prime(&n) || n.is_probably_prime(15) == IsPrime::Probably {
+        println!("{} is probably prime. Don't waste time trying to factorize it ;)", n);
+    } else {
+        let r = match app.value_of("algorithm").unwrap() {
+            "S" => time(|| serial_MPQS::mpqs(&n)),
+            "M" => time(|| memory_shared_MPQS::mpqs(&n)),
+            "A" => time(|| message_MPQS::mpqs(&n)),
+            _ => panic!(""),
+        };
+        check_is_divisor(n, r);
+    }
 }
 
 // Results: Factorization di 1201121312171223122912311237 * 3023706637809542222940030043

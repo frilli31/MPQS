@@ -116,10 +116,11 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
             }
         }
         if smooths.len() > factorbase.len() {
-            break;
+            if let Some(ris) = algebra::algebra(&factorbase, &smooths, n) {
+                return Some(ris);
+            }
         }
     }
-    algebra::algebra(factorbase, smooths, n)
 }
 
 pub struct InitResult {

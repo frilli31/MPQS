@@ -47,7 +47,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
     let mut smooths = Vec::with_capacity(factorbase.len() + 100);
     let mut partials: HashMap<Integer, (Integer, (Integer, Integer))> = HashMap::new();
 
-    while smooths.len() < factorbase.len() + 1 {
+    loop {
         let (mut sm, part, sender) = result_receiver.recv().unwrap();
         smooths.append(&mut sm);
 
@@ -64,14 +64,17 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
                 }
             }
         }
+        if smooths.len() > factorbase.len() {
+            if let Some(ris) = algebra::algebra(&factorbase, &smooths, n) {
+                return Some(ris);
+            }
+        }
         roota.next_prime_mut();
         while n.legendre(&roota) != 1 {
             roota.next_prime_mut();
         }
         sender.send(roota.clone());
     }
-    std::mem::drop(result_receiver);
-    algebra::algebra(factorbase, smooths, n)
 }
 
 fn sieve_actor(
