@@ -2,8 +2,8 @@ use std::cmp::min;
 use std::collections::HashMap;
 
 use log::info;
-use rug::Integer;
 use rug::ops::Pow;
+use rug::Integer;
 
 use crate::algebra;
 use crate::serial_MPQS::{initialize_qs, InitResult};
@@ -22,19 +22,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
     } = initialize_qs(n);
 
     // Multi Producer - Single Consumer
-    let (result_sender, result_receiver) = std::sync::mpsc::sync_channel(20);
-    // Single Producer - Multiple Consumer
-    let (roota_sender, roota_receiver) = crossbeam_channel::bounded(20);
-
-    let n_clone = n.clone();
-
-    for _ in 0..num_cpus::get() + 3 {
-        roota.next_prime_mut();
-        while n_clone.legendre(&roota) != 1 {
-            roota.next_prime_mut();
-        }
-        roota_sender.send(roota.clone());
-    }
+    let (result_sender, result_receiver) = std::sync::mpsc::sync_channel(12);
 
     for _ in 0..num_cpus::get() {
         let z = n.clone();
@@ -42,14 +30,12 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
         let result_sender = result_sender.clone();
         let tsqrt = tsqrt.clone();
         let tlog = tlog.clone();
-        let roota = roota_receiver.clone();
 
         std::thread::spawn(move || {
             sieve_actor(
                 z,
                 factorbase,
                 result_sender,
-                roota,
                 tsqrt,
                 tlog,
                 xmax,
@@ -63,7 +49,7 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
     let mut partials: HashMap<Integer, (Integer, (Integer, Integer))> = HashMap::new();
 
     while smooths.len() < factorbase.len() + 1 {
-        let (mut sm, part) = result_receiver.recv().unwrap();
+        let (mut sm, part, sender) = result_receiver.recv().unwrap();
         smooths.append(&mut sm);
 
         for (key, (pairv2, pairvals2)) in part {
@@ -80,10 +66,10 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
             }
         }
         roota.next_prime_mut();
-        while n_clone.legendre(&roota) != 1 {
+        while n.legendre(&roota) != 1 {
             roota.next_prime_mut();
         }
-        roota_sender.send(roota.clone());
+        sender.send(roota.clone());
     }
     std::mem::drop(result_receiver);
     algebra::algebra(factorbase, smooths, n)
@@ -95,8 +81,8 @@ fn sieve_actor(
     sender: std::sync::mpsc::SyncSender<(
         Vec<(Integer, (Integer, Integer))>,
         HashMap<Integer, (Integer, (Integer, Integer))>,
+        std::sync::mpsc::SyncSender<Integer>,
     )>,
-    roota: crossbeam_channel::Receiver<Integer>,
     tsqrt: Vec<Integer>,
     tlog: Vec<f64>,
     xmax: i64,
@@ -107,8 +93,12 @@ fn sieve_actor(
     let mut partials: HashMap<Integer, (Integer, (Integer, Integer))> = HashMap::new();
     let mut smooths: Vec<(Integer, (Integer, Integer))> = Vec::new();
 
+    let (roota_sender, roota_receiver) = std::sync::mpsc::sync_channel(2);
+    sender.send((Vec::new(), HashMap::new(), roota_sender.clone()));
+    sender.send((Vec::new(), HashMap::new(), roota_sender.clone()));
+
     loop {
-        let roota = roota.recv().unwrap();
+        let roota = roota_receiver.recv().unwrap();
 
         info!("Loop 1, roota: {}, n: {}", roota, n);
         let a = roota.clone().pow(2);
@@ -199,7 +189,11 @@ fn sieve_actor(
                 }
             }
         }
-        if let Err(_) = sender.send((smooths.drain(..).collect(), partials.drain().collect())) {
+        if let Err(_) = sender.send((
+            smooths.drain(..).collect(),
+            partials.drain().collect(),
+            roota_sender.clone(),
+        )) {
             return;
         };
     }

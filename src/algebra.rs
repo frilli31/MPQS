@@ -1,6 +1,6 @@
 use log::info;
-use rug::Integer;
 use rug::ops::Pow;
+use rug::Integer;
 
 pub fn algebra(
     factorbase: Vec<u64>,
