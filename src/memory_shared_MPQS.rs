@@ -1,13 +1,12 @@
 use std::cmp::min;
 use std::collections::HashMap;
-use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::SyncSender;
 
 use chashmap::CHashMap;
 use crossbeam::queue::ArrayQueue;
-use log::info;
-use rug::ops::Pow;
 use rug::Integer;
+use rug::ops::Pow;
 
 use crate::algebra;
 use crate::serial_MPQS::{initialize_qs, InitResult};
@@ -92,7 +91,6 @@ fn thread_loop(
             }
             aq_roota.clone()
         };
-        info!("Loop 1, roota: {}, n: {}", my_roota, n);
         let a = my_roota.clone().pow(2);
         let b = tonelli_shanks(&n, &my_roota);
 
@@ -101,8 +99,6 @@ fn thread_loop(
         let b = (-(b.clone() * &b - &n) * intermediate + &b) % &a;
 
         let c = (b.clone() * &b - &n) / &a;
-
-        info!("a={} \t b={} \t c={}", a, b, c);
 
         let mut s1: HashMap<u64, i64> = HashMap::new();
         let mut s2: HashMap<u64, i64> = HashMap::new();

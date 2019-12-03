@@ -1,7 +1,6 @@
 use std::cmp::{max, min};
 use std::collections::HashMap;
 
-use log::info;
 use primal_sieve;
 use rug::Integer;
 
@@ -30,7 +29,6 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
                 break;
             }
         }
-        info!("Loop 1, roota: {}", roota);
         let a = roota.clone() * &roota;
         let b = tonelli_shanks(&n, &roota);
 
@@ -40,8 +38,6 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
         let b = (b.clone() - (b.clone() * b - n) * intermediate) % &a;
 
         let c = (b.clone() * &b - n) / &a;
-
-        info!("a={} \t b={} \t c={}", a, b, c);
 
         let mut s1: HashMap<u64, i64> = HashMap::new();
         let mut s2: HashMap<u64, i64> = HashMap::new();
@@ -122,13 +118,10 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
         if smooths.len() > factorbase.len() {
             break;
         }
-        info!("{} relations found using {}", smooths.len(), roota);
     }
-    info!("{:?}", smooths);
     algebra::algebra(factorbase, smooths, n)
 }
 
-#[derive(Debug)]
 pub struct InitResult {
     pub roota: Integer,
     pub factorbase: Vec<u64>,
@@ -142,11 +135,7 @@ pub struct InitResult {
 pub fn initialize_qs(n: &Integer) -> InitResult {
     let _root2n: Integer = (n * Integer::from(2)).sqrt();
 
-    info!("Isqrt is {}", _root2n);
-
     let bound: usize = (n.to_f64().log10().powi(2) * 5_f64) as usize;
-
-    info!("Bound is {}", bound);
 
     let factorbase: Vec<u64> = primal_sieve::Sieve::new(bound)
         .primes_from(2)
@@ -155,28 +144,15 @@ pub fn initialize_qs(n: &Integer) -> InitResult {
         .map(|x| x as u64)
         .collect();
 
-    info!(
-        "Largest prime used is {:?}",
-        factorbase[factorbase.len() - 1]
-    );
-    info!("Factorbase len {:?}", factorbase.len());
-
     let (mut tsqrt, tlog): (Vec<Integer>, Vec<f64>) = factorbase
         .iter()
         .map(|p| (tonelli_shanks(&n, &Integer::from(*p)), (*p as f64).log10()))
         .unzip();
     tsqrt[0] = Integer::new();
 
-    info!("{:?}", tsqrt);
-    info!("{:?}", tlog);
-
     let xmax: i64 = factorbase.len() as i64 * 60 * 4;
     let mval: Integer = (_root2n.clone() * xmax) >> 1;
     let thresh = mval.to_f64().log10() * 0.735;
-
-    info!("XMAX is {:?}", xmax);
-    info!("mval is {:?}", mval);
-    info!("thresh is {:?}", thresh);
 
     let min_prime = (thresh * 3_f64) as u64;
     let fudge: f64 = factorbase
@@ -187,10 +163,6 @@ pub fn initialize_qs(n: &Integer) -> InitResult {
         .sum::<f64>()
         / 4_f64;
 
-    info!("min_prime is: {}", min_prime);
-    info!("thresh is: {}", thresh);
-    info!("Fudge is: {}", fudge);
-
     let thresh = thresh - fudge;
 
     let mut roota = (_root2n / xmax).sqrt();
@@ -198,9 +170,7 @@ pub fn initialize_qs(n: &Integer) -> InitResult {
         roota += 1;
     }
 
-    info!("ROOTA is {}", roota);
     let roota: Integer = max(roota, Integer::from(3));
-    info!("ROOTA is {}", roota);
 
     InitResult {
         roota,

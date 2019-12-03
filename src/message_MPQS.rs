@@ -1,9 +1,8 @@
 use std::cmp::min;
 use std::collections::HashMap;
 
-use log::info;
-use rug::ops::Pow;
 use rug::Integer;
+use rug::ops::Pow;
 
 use crate::algebra;
 use crate::serial_MPQS::{initialize_qs, InitResult};
@@ -93,14 +92,13 @@ fn sieve_actor(
     let mut partials: HashMap<Integer, (Integer, (Integer, Integer))> = HashMap::new();
     let mut smooths: Vec<(Integer, (Integer, Integer))> = Vec::new();
 
-    let (roota_sender, roota_receiver) = std::sync::mpsc::sync_channel(2);
+    let (roota_sender, roota_receiver) = std::sync::mpsc::sync_channel(1);
     sender.send((Vec::new(), HashMap::new(), roota_sender.clone()));
     sender.send((Vec::new(), HashMap::new(), roota_sender.clone()));
 
     loop {
         let roota = roota_receiver.recv().unwrap();
 
-        info!("Loop 1, roota: {}, n: {}", roota, n);
         let a = roota.clone().pow(2);
         let b = tonelli_shanks(&n, &roota);
 
@@ -109,8 +107,6 @@ fn sieve_actor(
         let b = (-(b.clone() * &b - &n) * intermediate + &b) % &a;
 
         let c = (b.clone() * &b - &n) / &a;
-
-        info!("a={} \t b={} \t c={}", a, b, c);
 
         let mut s1: HashMap<u64, i64> = HashMap::new();
         let mut s2: HashMap<u64, i64> = HashMap::new();

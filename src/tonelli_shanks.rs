@@ -1,4 +1,3 @@
-use log::info;
 use rug::Integer;
 
 /// Tonelli Shanks Algorithm
@@ -24,8 +23,6 @@ pub fn tonelli_shanks(n: &Integer, p: &Integer) -> Integer {
         let mut x = n.clone().pow_mod(&((s + 1) / 2), p).unwrap();
         let mut r = e;
 
-        info!("x = {} b={} g={} r={}", x, b, g, r);
-
         let TWO = Integer::from(2);
         loop {
             let mut t = b.clone();
@@ -42,15 +39,13 @@ pub fn tonelli_shanks(n: &Integer, p: &Integer) -> Integer {
 
             let gs = g
                 .clone()
-                .pow_mod(&Integer::from(Integer::u_pow_u(2, r - m - 1)), p)
+                .pow_mod(&(Integer::from(1) << (r - m - 1)), p)
                 .unwrap();
 
             g = gs.clone().square() % p;
             x = x * gs % p;
             b = b * &g % p;
             r = m;
-
-            info!("g={} x={} b={} r={}", g, x, b, r);
         }
     }
 }
