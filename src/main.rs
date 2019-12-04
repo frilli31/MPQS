@@ -46,7 +46,10 @@ pub fn main() {
         });
 
     if rabin_miller::is_rabin_miller_prime(&n) || n.is_probably_prime(15) == IsPrime::Probably {
-        println!("{} is probably prime. Don't waste time trying to factorize it ;)", n);
+        println!(
+            "{} is probably prime. Don't waste time trying to factorize it ;)",
+            n
+        );
     } else {
         let r = match app.value_of("algorithm").unwrap() {
             "S" => time(|| serial_MPQS::mpqs(&n)),

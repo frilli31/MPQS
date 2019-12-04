@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::SyncSender;
+use std::time::Duration;
 
 use chashmap::CHashMap;
 use crossbeam::queue::ArrayQueue;
@@ -59,12 +60,18 @@ pub fn mpqs(n: &Integer) -> Option<Integer> {
     }
 
     let _ = receiver.recv();
-
     let mut new_smooth: Vec<_> = Vec::with_capacity(arc_smooths.len());
-    for _ in 0..arc_smooths.len() {
-        new_smooth.push(arc_smooths.pop().unwrap());
+    loop {
+        while arc_smooths.is_empty() {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        while let Ok(t) = arc_smooths.pop() {
+            new_smooth.push(t);
+        }
+        if let Some(ris) = algebra::algebra(&factorbase, &new_smooth, n) {
+            return Some(ris);
+        }
     }
-    algebra::algebra(&factorbase, &new_smooth, n)
 }
 
 fn thread_loop(
@@ -178,10 +185,8 @@ fn thread_loop(
                 }
             }
         }
-
-        if smooths.len() >= factorbase.len() {
+        if smooths.len() > factorbase.len() {
             sender.send(());
-            return;
         }
     }
 }
